@@ -1,0 +1,59 @@
+import PyPDF2
+import pandas as pd
+import numpy as np
+from selenium import webdriver
+import os
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import NoSuchElementException
+
+DRIVER_PATH = os.path.abspath(os.getcwd()) + '/chromedriver'
+print(DRIVER_PATH)
+s=Service(ChromeDriverManager().install())
+driver = webdriver.Chrome(service=s)
+driver.maximize_window()
+driver.get('https://web-as.tamu.edu/gradereports/')
+try:
+    choice_list = driver.find_element_by_id("ctl00_plcMain_lstGradCollege")
+    print('Success')
+except NoSuchElementException:
+    print('Incorrect ID')
+print(choice_list)
+#---------Add code here to extract choice list---------------
+pdfFileObj = open('grd20203EN.pdf', 'rb') #sample file
+driver.quit()
+pdfReader = PyPDF2.PdfFileReader(pdfFileObj)
+num_pages = pdfReader.numPages
+print(num_pages)
+section_rows = []
+course_rows = []
+for i in range(0,num_pages):
+    pageObj = pdfReader.getPage(i)
+    text = pageObj.extractText()
+    data = text.split('\n')
+    if('Undergraduate' in data):
+        idx = data.index('Undergraduate')
+        data = data[idx+1:]
+    elif('Graduate' in data):
+        idx = data.index('Graduate')
+        data = data[idx+1:]
+    data.pop() #removing empty record related to last space in data
+    
+    while(data):
+        if(data[0] != 'COURSE TOTAL:'):
+            row = data[0:20]
+            data = data[20:]
+            course_temp = row[0]
+            section_rows.append(row)
+        else:
+            row = data[0:19]
+            course_tokens = course_temp.split('-')
+            row[0] = course_tokens[0] + '-' + course_tokens[1]
+            data = data[19:]
+            course_rows.append(row)
+section_df = pd.DataFrame(section_rows, columns=['Course Name', 'A_number', 'A_percent','B_number', 'B_percent','C_number', 'C_percent','D_number', 'D_percent','F_number', 'F_percent','TotalA_F','GPA','I','S','U','Q','X','Total','Instructor'])
+course_df = pd.DataFrame(course_rows, columns=['Course Name', 'A_number', 'A_percent','B_number', 'B_percent','C_number', 'C_percent','D_number', 'D_percent','F_number', 'F_percent','TotalA_F','GPA','I','S','U','Q','X','Total'])
+print(section_df.describe)
+print(course_df.describe)
+pdfFileObj.close()
